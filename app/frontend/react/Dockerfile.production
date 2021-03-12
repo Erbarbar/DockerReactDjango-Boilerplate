@@ -1,0 +1,12 @@
+FROM node:latest
+
+WORKDIR /usr/src/app/
+
+COPY package.json .
+
+RUN yarn install
+
+COPY . .
+
+RUN rm -r -f /usr/src/app/build
+RUN yarn build --production

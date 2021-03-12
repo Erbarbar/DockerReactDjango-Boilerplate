@@ -1,0 +1,55 @@
+version: '3.7'
+
+services:
+  react:
+    build:
+      context: ./app/frontend/
+      dockerfile: Dockerfile.production
+
+  django:
+    build: ./app/backend
+    command: gunicorn podium.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - static_volume:/home/app/web/staticfiles
+      - media_volume:/home/app/web/mediafiles
+    env_file:
+      - ./data/env/production.env
+    depends_on:
+      - postgres
+
+  node:
+    build: ../app/backend/websockets
+    command: node server.js
+
+  postgres:
+    image: postgres:12.0-alpine
+    volumes:
+      - postgres_volume:/var/lib/postgresql/data/
+    env_file:
+      - ./data/env/production.env
+
+  nginx:
+    command: '/bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g ''daemon off;''"'
+    image: nginx:1.15-alpine
+    volumes:
+      - static_volume:/home/app/web/staticfiles
+      - media_volume:/home/app/web/mediafiles
+      - ../app/frontend/build:/home/app/web/build
+      - ./data/nginx/production:/etc/nginx/conf.d
+    ports:
+      - 80:80
+    depends_on:
+      - django
+
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  static_volume:
+  media_volume:
+  postgres_volume:
